@@ -2,7 +2,7 @@
 
 Tools for scraping pdfs with OCR
 
-###### Basic Usage
+##### Basic Usage
 
 ```python
 import ocrtools as ocrt
@@ -27,7 +27,7 @@ for page in doc.pages():
 
 This searches the PDF and extracts dates and addresses from the specified regions with the fewest possible calls to the OCR engine with only a subset of each page.
 
-###### Logging
+##### Logging
 
 Log the OCR results:
 ```python
@@ -41,7 +41,7 @@ for page in doc.pages():
 ```
 
 
-###### Available OCR Engines
+##### Available OCR Engines
 
 OCRTools comes with `Tesseract` (via Tesserocr) and `Textract` interfaces. To use your own simply provide a function of the following type to `extractor.extract`.
 
@@ -49,7 +49,7 @@ OCRTools comes with `Tesseract` (via Tesserocr) and `Textract` interfaces. To us
 OCRReader = Callable[[List[OCRResource]], List[pandas.DataFrame]]
 ```
 
-###### Taggers
+##### Taggers
 
 OCRTools uses `spacy` and huggingface `tranformers` to identify entities such as dates and names within text. To use your own, simply provide a function of the following type:
 ```python
