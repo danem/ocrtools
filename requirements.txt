@@ -1,0 +1,10 @@
+boto3
+dateparse
+numpy
+pandas
+pillow
+pymupdf
+spacy
+textractcaller
+transformers
+trp
