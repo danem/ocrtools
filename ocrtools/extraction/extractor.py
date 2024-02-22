@@ -6,11 +6,11 @@ import datetime
 import re
 
 import ocrtools.types as otypes
-import ocrtools.ocr as ocr
+import ocrtools.ocr as oocr
 import ocrtools.pdf as opdf
 import ocrtools.extraction.tagger as otag
 
-ExtractionFn = Callable[[List[ocr.OCRBox]], List[Tuple[Any, ocr.OCRBox]]]
+ExtractionFn = Callable[[List[oocr.OCRBox]], List[Tuple[Any, oocr.OCRBox]]]
 
 @dataclasses.dataclass
 class FieldExtractor:
@@ -65,10 +65,10 @@ class Extractor:
     
     def extract (
         self,
-        ocr: ocr.OCRReader,
+        ocr: oocr.OCRReader,
         page: opdf.Page,
         dpi: int = 100,
-        logger: ocr.OCRLogger = None
+        logger: oocr.OCRLogger = None
     ):
         # TODO: Should cache the page to image conversion...
         # So it can be used by other extractors
@@ -83,7 +83,7 @@ class Extractor:
         idpi_scale = 72 / dpi
         for group in self._groups:
             gbox = group.box.scale(pw*dpi_scale, ph*dpi_scale)
-            img, boxes = ocr.ocr_page(ocr, page, clip=group.box, dpi=dpi)
+            img, boxes = oocr.ocr_page(ocr, page, clip=group.box, dpi=dpi)
             for extractor in group.extractors:
                 targets = []
                 for box in boxes:
@@ -98,7 +98,7 @@ class Extractor:
             values = extractor.extractor(boxes)
             for value, box in values:
                 result[extractor.name].append(value)
-                lbox = ocr.OCRBox([f"{extractor.name}: {value}"], box.box, [0], 1, [])
+                lbox = oocr.OCRBox([f"{extractor.name}: {value}"], box.box, [0], 1, [])
                 logs[img].append(lbox)
             # else:
                 # logs[img] = []
@@ -112,8 +112,8 @@ class Extractor:
         return result
 
 
-def make_extractor (merger: ocr.OCRBoxMerger, fn: Callable[[str], Any]) -> ExtractionFn:
-    def ret (boxes: List[ocr.OCRBox]):
+def make_extractor (merger: oocr.OCRBoxMerger, fn: Callable[[str], Any]) -> ExtractionFn:
+    def ret (boxes: List[oocr.OCRBox]):
         boxes = merger(boxes)
         results = []
         for box in boxes:
@@ -129,10 +129,10 @@ def make_extractor (merger: ocr.OCRBoxMerger, fn: Callable[[str], Any]) -> Extra
 # -----------------
 
 def _get_date (tagger: otag.NERTagger, txts: List[str]) -> Optional[datetime.datetime]:
-    _txts = []
-    for t in txts:
-        _txts.append(re.sub("[\-\_]", " ", t))
-    dates = otag.extract_date_strings(tagger, _txts)
+    # _txts = []
+    # for t in txts:
+    #     _txts.append(re.sub("[\-\_]", " ", t))
+    dates = otag.extract_date_strings(tagger, txts)
     if len(dates):
         return dates[0]
 
@@ -140,17 +140,17 @@ def _get_date (tagger: otag.NERTagger, txts: List[str]) -> Optional[datetime.dat
 
 # Extract date using the supplied NERTagger. Should be capable of finding dates within paragraphs
 # written in virtually any format
-def get_date (tagger: otag.NERTagger, merger: ocr.OCRBoxMerger = ocr.DefaultMerger) -> ExtractionFn:
+def get_date (tagger: otag.NERTagger, merger: oocr.OCRBoxMerger = oocr.DefaultMerger) -> ExtractionFn:
     return make_extractor(merger, lambda t: _get_date(tagger, t))
 
 # Extract the raw text from the OCR result
-def identity (merger: ocr.OCRBoxMerger = ocr.TotalMerger) -> ExtractionFn:
+def identity (merger: oocr.OCRBoxMerger = oocr.TotalMerger) -> ExtractionFn:
     return make_extractor(merger, lambda t: t)
 
 
 # Extract text matching the supplied regex
-def match (pattern: re.Pattern, merger: ocr.OCRBoxMerger = ocr.DefaultMerger) -> ExtractionFn:
-    def ret (boxes: List[ocr.OCRBox]):
+def match (pattern: re.Pattern, merger: oocr.OCRBoxMerger = oocr.DefaultMerger) -> ExtractionFn:
+    def ret (boxes: List[oocr.OCRBox]):
         boxes = merger(boxes)
         results = []
         for box in boxes:
