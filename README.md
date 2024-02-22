@@ -39,6 +39,7 @@ for page in doc.pages():
         print(f"address: {res['address']}")
         print(f"date: {res['date']}")
 ```
+This writes images annotated with OCR and extraction result to `/tmp/ocr-logs/test`.
 
 
 ##### Available OCR Engines
@@ -55,6 +56,7 @@ OCRTools uses `spacy` and huggingface `tranformers` to identify entities such as
 ```python
 NERTagger = Callable[[str], List[TokenSpan]]
 ```
+
 
 
 ##### Requirements
