@@ -2,6 +2,17 @@
 
 Tools for scraping pdfs with OCR
 
+##### Installation
+Clone the repo and install with:
+```
+python3 -m pip install .
+```
+
+On MacOS you may need to run
+```
+python3 -m pip install --no-binary tesserocr .
+```
+
 ##### Basic Usage
 
 ```python
@@ -56,7 +67,6 @@ OCRTools uses `spacy` and huggingface `tranformers` to identify entities such as
 ```python
 NERTagger = Callable[[str], List[TokenSpan]]
 ```
-
 
 
 ##### Requirements
