@@ -18,9 +18,9 @@ import ocrtools.pdf as opdf
 
 @dataclasses.dataclass
 class OCRResult:
-    reads: pd.DataFrame
-    tables: List[pd.DataFrame]
-    table_confidences: List[pd.DataFrame]
+    reads: pd.DataFrame # columns: [text, id, table_num, table_idx, confidence, left, right, top, bottom]
+    tables: List[pd.DataFrame] # raw table data 
+    table_confidences: List[pd.DataFrame] # floats in shape of corresponding table
     table_boxes: List[otypes.BBox]
 
 OCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
@@ -39,13 +39,6 @@ def _ocr_resource_to_image (resource: OCRResource) -> Image.Image:
         raise Exception(f"Invalid resource type {type(resource)}")
 
 
-
-def extract_pdf_text (reader: OCRReader, pdf: opdf.PDFResource):
-    # TODO: See note in Textract reader
-    doc  = opdf.get_pdf(pdf)
-    imgs = opdf.pdf_doc_to_imgs(doc)
-    return reader(imgs)
-    
 @dataclasses.dataclass
 class OCRBox:
     text: List[str]
@@ -61,6 +54,8 @@ class OCRBox:
         self.box = otypes.expand_box(self.box, amt)
         return self
 
+# Interface for functions sorting and merging word-level OCR boxes
+# For instance, you typically want to join word-level boxes into a single line box
 OCRBoxMerger = Callable[[List[OCRBox]], List[OCRBox]]
 
 
@@ -191,9 +186,13 @@ def OCRMerger (x_dist: int = 10, y_dist: int = 1) -> OCRBoxMerger:
         return boxes
     return ret
 
-IdentMerger = OCRMerger(0,0)
+# No merging at all
+IdentMerger = lambda boxes: boxes
+
+# Merge lines
 DefaultMerger = OCRMerger(10,0)
 
+# Merge all boxes into one
 def TotalMerger (boxes: List[OCRBox]) -> List[OCRBox]:
     max_x = float("-inf")
     max_y = float("-inf")
