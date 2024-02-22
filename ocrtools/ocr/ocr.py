@@ -8,8 +8,10 @@ import os
 import pandas as pd
 import tempfile
 import pathlib
+from collections import defaultdict
 
 import ocrtools.types as otypes
+import ocrtools.utils as outils
 
 import tesserocr
 # This needs to be imported after tesserocr
@@ -24,7 +26,7 @@ class OCRResult:
     table_boxes: List[otypes.BBox]
 
 OCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
-OCRReader = Callable[[List[OCRResource]], List[OCRResult]]
+OCREngine = Callable[[List[OCRResource]], List[OCRResult]]
 
 
 def _ocr_resource_to_image (resource: OCRResource) -> Image.Image:
@@ -204,22 +206,71 @@ def TotalMerger (boxes: List[OCRBox]) -> List[OCRBox]:
     boxes = merge_vertical(boxes, max_y, 1)
     return boxes
 
-def ocr_page (
-    ocr: OCRReader, 
-    page: opdf.Page, 
-    clip: otypes.BBox = None,
-    dpi: int = None,
-    colorspace: opdf.Colorspace = opdf.CS_RGB,
-):
-    img = opdf.pdf_page_to_img(page, clip=clip, dpi=dpi, colorspace=colorspace)
-    result = []
-    ocr_results = ocr(img)
+# Caching layer for OCR
+class OCRReader:
+    def __init__ (
+        self,
+        engine: OCREngine 
+    ):
+        self._engine = engine
+        self._cache  = outils.CacheDict(cache_len=100)
+    
+    def _cache_key (
+        self, 
+        page: opdf.Page, 
+        dpi: int = -1, 
+        colorspace: opdf.Colorspace = opdf.CS_RGB
+    ):
+        page_id = f"{page.parent.name}#{page.xref}#{dpi}#{colorspace}"
+        return page_id
+    
+    def _cache_lookup (
+        self,
+        key: str,
+        clip: otypes.BBox
+    ) -> Tuple[opdf.PageImage, List[OCRBox]]:
+        for entry in self._cache.get(key, []):
+            img, extent, boxes = entry
+            if otypes.bbox_contains(extent, clip):
+                res_boxes = [b for b in boxes if otypes.bbox_overlaps(clip, b.box)]
+                return img, res_boxes
 
-    for page in ocr_results:
-        boxes = df_to_ocrbox(page.reads, "XYXY")
-        result += boxes
+    def _cache_add (
+        self,
+        key: str,
+        clip: otypes.BBox,
+        img: opdf.PageImage,
+        boxes: List[OCRBox]
+    ):
+        new_entries = [(img, clip, boxes)]
+        for entry in self._cache.get(key, []):
+            img, extent, eboxes = entry
+            if not otypes.bbox_contains(clip, extent):
+                new_entries.append((img, extent, eboxes))
+        self._cache[key] = new_entries
+    
+    def ocr_page (
+        self, 
+        page: opdf.Page, 
+        clip: otypes.BBox = None, 
+        dpi: int = None, 
+        colorspace: opdf.Colorspace = opdf.CS_RGB
+    ):
+        clip = clip if clip else otypes.BBox.from_xyxy(0,0,1,1)
+        key = self._cache_key(page, dpi, colorspace)
+        if res := self._cache_lookup(key, clip):
+            return res
+        else:
+            img = opdf.pdf_page_to_img(page, clip=clip, dpi=dpi, colorspace=colorspace)
+            ocr_results = self._engine(img)
+            result = []
+            for page in ocr_results:
+                boxes = df_to_ocrbox(page.reads, "XYXY")
+                result += boxes
+            self._cache_add(key, clip, img, result)
+            return img, result
 
-    return img, result
+
 
 
 

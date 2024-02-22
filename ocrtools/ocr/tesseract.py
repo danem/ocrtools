@@ -14,7 +14,8 @@ import ocrtools.pdf as apdf
 # TODO: make this cross platform
 os.environ["TESSDATA_PREFIX"] = "/opt/homebrew/share/tessdata/"
 
-class TesseractReader:
+
+class TesseractEngine:
     def __init__(self) -> None:
         self._config = ""
         self._api = tesserocr.PyTessBaseAPI()
@@ -65,3 +66,6 @@ class TesseractReader:
             res = self._extract_text(self._api, img)
             results.append(res)
         return results
+
+def TesseractReader ():
+    return aocr.OCRReader(TesseractEngine())

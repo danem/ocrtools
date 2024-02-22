@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 import dataclasses
 import numpy as np
 
@@ -91,6 +91,20 @@ def bbox_overlaps (box1, box2):
     # Boxes overlap
     return True
 
+def bbox_contains (box1, box2):
+    x1_1, y1_1, x2_1, y2_1 = box1.as_tuple()
+    x1_2, y1_2, x2_2, y2_2 = box2.as_tuple()
+    return x1_1 <= x1_2 and y1_1 <= y1_2 and x2_1 >= x2_2 and y2_1 >= y2_2
+
+def bboxes_extents (boxes: List[BBox]) -> BBox:
+    min_x, min_y, max_x, max_y = float("inf"), float("inf"), float("-inf"), float("-inf")
+    for box in boxes:
+        x1, y1, x2, y2 = box.as_tuple()
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
+    return BBox.from_xyxy(x1,y1,x2,y2)
 
 def merge_boxes (box1: BBox, box2: BBox) -> BBox:
     box1 = box1.as_tuple()

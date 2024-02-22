@@ -29,7 +29,7 @@ def _get_page_blocks (page: trp.Page):
         res[b.id] = b
     return res
 
-class TextractReader:
+class TextractEngine:
     def __init__ (
         self,
         bucket_name: str,
@@ -141,3 +141,6 @@ class TextractReader:
             results.append(res)
 
         return results
+
+def TextractReader (bucket_name, aws_profile):
+    return aocr.OCRReader(TextractEngine(bucket_name, aws_profile))

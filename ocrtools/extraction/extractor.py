@@ -70,9 +70,6 @@ class Extractor:
         dpi: int = 100,
         logger: oocr.OCRLogger = None
     ):
-        # TODO: Should cache the page to image conversion...
-        # So it can be used by other extractors
-
         pw, ph = page.rect.width, page.rect.height
         result = defaultdict(list)
         logs = defaultdict(list)
@@ -83,7 +80,7 @@ class Extractor:
         idpi_scale = 72 / dpi
         for group in self._groups:
             gbox = group.box.scale(pw*dpi_scale, ph*dpi_scale)
-            img, boxes = oocr.ocr_page(ocr, page, clip=group.box, dpi=dpi)
+            img, boxes = ocr.ocr_page(page, clip=group.box, dpi=dpi)
             for extractor in group.extractors:
                 targets = []
                 for box in boxes:
