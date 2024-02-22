@@ -57,7 +57,7 @@ NERTagger = Callable[[str], List[TokenSpan]]
 ```
 
 
-###### Requirements
+##### Requirements
 
 - fitz (pymupdf)
 - dateparse
