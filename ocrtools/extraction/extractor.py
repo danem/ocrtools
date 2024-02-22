@@ -112,7 +112,7 @@ class Extractor:
         return result
 
 
-def make_extractor (merger, fn):
+def make_extractor (merger: ocr.OCRBoxMerger, fn: Callable[[str], Any]) -> ExtractionFn:
     def ret (boxes: List[ocr.OCRBox]):
         boxes = merger(boxes)
         results = []
