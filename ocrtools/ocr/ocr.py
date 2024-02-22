@@ -16,15 +16,15 @@ import tesserocr
 # see: https://github.com/sirfz/tesserocr/issues/335
 import ocrtools.pdf as opdf
 
-OCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
-OCRReader = Callable[[List[OCRResource]], List[pd.DataFrame]]
-
 @dataclasses.dataclass
 class OCRResult:
     reads: pd.DataFrame
     tables: List[pd.DataFrame]
     table_confidences: List[pd.DataFrame]
     table_boxes: List[otypes.BBox]
+
+OCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
+OCRReader = Callable[[List[OCRResource]], List[OCRResult]]
 
 
 def _ocr_resource_to_image (resource: OCRResource) -> Image.Image:
