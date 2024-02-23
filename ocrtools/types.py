@@ -35,6 +35,14 @@ class BBox:
     def from_xyxy (x1: float, y1: float, x2: float, y2: float):
         return BBox(x1, y1, x2, y2)
     
+    def transform (self, mat: np.array):
+        tl = mat @ np.array([self._points[0], self._points[1], 1])
+        br = mat @ np.array([self._points[2], self._points[3], 1])
+        return BBox.from_xyxy(
+            tl[0], tl[1],
+            br[0], br[1]
+        )
+    
     def translate (self, x, y):
         return BBox.from_xyxy(
             self._points[0] + x,

@@ -19,15 +19,44 @@ import tesserocr
 import ocrtools.pdf as opdf
 
 @dataclasses.dataclass
+class OCRBox:
+    text: List[str]
+    box: otypes.BBox # Boxes are always specified in relative terms
+    ids: List[int]
+    confidence: List[float]
+
+    def to_str (self):
+        return " ".join(self.text)
+
 class OCRResult:
-    reads: pd.DataFrame # columns: [text, id, table_num, table_idx, confidence, left, right, top, bottom]
-    tables: List[pd.DataFrame] # raw table data 
-    table_confidences: List[pd.DataFrame] # floats in shape of corresponding table
-    table_boxes: List[otypes.BBox]
+    def __init__ (
+        self,
+        reads: List[OCRBox] = None,
+        tables: List[pd.DataFrame] = None,
+        table_confidences: List[pd.DataFrame] = None,
+        table_boxes: List[otypes.BBox] = None,
+        read_to_table_mapping: List[Tuple[int,int]] = None # TODO
+    ):
+        self.reads = reads if reads else []
+        self.tables = tables if tables else []
+        self.table_confidences = table_confidences if table_confidences else []
+        self.table_boxes = table_boxes if table_boxes else []
+        self.read_to_table_mapping = read_to_table_mapping if read_to_table_mapping else []
+        self.extent = otypes.bboxes_extents([r.box for r in self.reads])
+    
+    def subset (self, region: otypes.BBox):
+        # TODO
+        ids = []
+        boxes = []
+        for box in self.reads:
+            if otypes.bbox_contains(region, box):
+                boxes.append(box)
+                ids += box.ids
+        # TODO: Include tables
+        return OCRResult(boxes)
 
 OCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
-OCREngine = Callable[[List[OCRResource]], List[OCRResult]]
-
+OCREngine = Callable[[List[OCRResource]], List[OCRResult]] 
 
 def _ocr_resource_to_image (resource: OCRResource) -> Image.Image:
     if isinstance(resource, opdf.PageImage):
@@ -41,25 +70,9 @@ def _ocr_resource_to_image (resource: OCRResource) -> Image.Image:
         raise Exception(f"Invalid resource type {type(resource)}")
 
 
-@dataclasses.dataclass
-class OCRBox:
-    text: List[str]
-    box: otypes.BBox
-    ids: List[int]
-    confidence: List[float]
-    table_idx: List[Tuple[int,int]]
-
-    def to_str (self):
-        return " ".join(self.text)
-    
-    def expand (self, amt: float):
-        self.box = otypes.expand_box(self.box, amt)
-        return self
-
 # Interface for functions sorting and merging word-level OCR boxes
 # For instance, you typically want to join word-level boxes into a single line box
 OCRBoxMerger = Callable[[List[OCRBox]], List[OCRBox]]
-
 
 def _merge_ocr_boxes (box1: OCRBox, box2: OCRBox) -> OCRBox:
     nbox = otypes.merge_boxes(box1.box, box2.box)
@@ -67,62 +80,8 @@ def _merge_ocr_boxes (box1: OCRBox, box2: OCRBox) -> OCRBox:
         box1.text + box2.text,
         nbox,
         box1.ids + box2.ids,
-        box1.confidence + box2.confidence,
-        []
+        box1.confidence + box2.confidence
     )
-
-
-# Out format: XYXY
-def df_to_ocrbox (df: pd.DataFrame, format="XYXY"):
-    # Convert dataframe from tesseract to OCRBoxes
-    format = format.upper()
-    df = df.dropna(subset=["text"])
-    if format == "XYXY":
-        boxes = list(np.array([
-            df.left, df.top, df.right, df.bottom
-        ]).T)
-    elif format == "XYWH":
-        boxes = list(np.array([
-            df.left, df.top, df.left + df.width, df.top + df.height
-        ]).T)
-    else:
-        raise Exception(f"Invalid format {format}")
-    
-
-    ocr_boxes = []
-
-    for i in range(len(df)):
-        row = df.iloc[i]
-        text = str(row.text)
-
-        # Get rid of empty reads often caused by lines 
-        if not text.strip(" "):
-            continue
-
-        ocr_boxes.append(OCRBox(
-            [text],
-            otypes.BBox(*boxes[i]),
-            [df.index[i]],
-            [df.confidence.iloc[i]],
-            [df.tidx.iloc[i]]
-        ))
-
-    return ocr_boxes
-
-def ocrbox_to_df (boxes: List[OCRBox]):
-    txts = []
-    l, r, t, b = [], [], [], []
-    confs = []
-    tidxs = []
-    for box in boxes:
-        txts.append(box.to_str())
-        x1,y1,x2,y2 = box.box.as_tuple()
-        l.append(x1); r.append(x2)
-        t.append(y1); b.append(y2)
-        confs.append(np.mean(box.confidence))
-        tidxs.append(None)
-    data = zip(txts, confs, tidxs, l, r, t, b)
-    return pd.DataFrame(data, columns=["text", "confidence", "tidx", "left", "right", "top", "bottom"])
 
 def _merge_extracted_text (
     boxes: List[OCRBox],
@@ -156,7 +115,7 @@ def _merge_extracted_text (
             box = result[i]
             box_pairs = sorted(zip(box.ids, box.text, box.confidence))
             ids, text, confs = zip(*box_pairs)
-            result[i] = OCRBox(text, box.box, ids, confs, [])
+            result[i] = OCRBox(text, box.box, ids, confs)
 
     return result
 
@@ -196,15 +155,11 @@ DefaultMerger = OCRMerger(10,0)
 
 # Merge all boxes into one
 def TotalMerger (boxes: List[OCRBox]) -> List[OCRBox]:
-    max_x = float("-inf")
-    max_y = float("-inf")
-    for box in boxes:
-        _,_,x,y = box.box.as_tuple()
-        max_x = max(x, max_x)
-        max_y = max(y, max_y)
-    boxes = merge_horizontal(boxes, max_x, 1)
-    boxes = merge_vertical(boxes, max_y, 1)
+    _,_,x,y = otypes.bboxes_extents([b.box for b in boxes]).as_tuple()
+    boxes = merge_horizontal(boxes, x, 1)
+    boxes = merge_vertical(boxes, y, 1)
     return boxes
+
 
 # Caching layer for OCR
 class OCRReader:
@@ -228,25 +183,22 @@ class OCRReader:
         self,
         key: str,
         clip: otypes.BBox
-    ) -> Tuple[opdf.PageImage, List[OCRBox]]:
-        for entry in self._cache.get(key, []):
-            img, extent, boxes = entry
+    ) -> Tuple[opdf.PageImage, OCRResult]:
+        for img, extent, result in self._cache.get(key, []):
             if otypes.bbox_contains(extent, clip):
-                res_boxes = [b for b in boxes if otypes.bbox_overlaps(clip, b.box)]
-                return img, res_boxes
+                return img, result.subset(clip)
 
     def _cache_add (
         self,
         key: str,
         clip: otypes.BBox,
         img: opdf.PageImage,
-        boxes: List[OCRBox]
+        ocr_result: OCRResult
     ):
-        new_entries = [(img, clip, boxes)]
-        for entry in self._cache.get(key, []):
-            img, extent, eboxes = entry
+        new_entries = [(img, clip, ocr_result)]
+        for img, extent, result in self._cache.get(key, []):
             if not otypes.bbox_contains(clip, extent):
-                new_entries.append((img, extent, eboxes))
+                new_entries.append((img, extent, result))
         self._cache[key] = new_entries
     
     def ocr_page (
@@ -255,20 +207,26 @@ class OCRReader:
         clip: otypes.BBox = None, 
         dpi: int = None, 
         colorspace: opdf.Colorspace = opdf.CS_RGB
-    ):
+    ) -> Tuple[opdf.PageImage, OCRResult]:
+        """
+        Run OCR on the provided page, at the specified DPI, within the specified `clip` region.
+        Returns the page image, and a list of OCRBoxes in *page space* (not clip space).
+        """
         clip = clip if clip else otypes.BBox.from_xyxy(0,0,1,1)
         key = self._cache_key(page, dpi, colorspace)
         if res := self._cache_lookup(key, clip):
             return res
         else:
             img = opdf.pdf_page_to_img(page, clip=clip, dpi=dpi, colorspace=colorspace)
-            ocr_results = self._engine(img)
-            result = []
-            for page in ocr_results:
-                boxes = df_to_ocrbox(page.reads, "XYXY")
-                result += boxes
-            self._cache_add(key, clip, img, result)
-            return img, result
+            ocr_result = self._engine(img)[0]
+
+            # Transform the reads into page space
+            clip2page = outils.clip_space_to_page_space(clip)
+            for read in ocr_result.reads:
+                read.box = read.box.transform(clip2page)
+
+            self._cache_add(key, clip, img, ocr_result)
+            return img, ocr_result
 
 
 

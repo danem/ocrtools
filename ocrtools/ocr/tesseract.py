@@ -4,6 +4,7 @@ import csv
 import io
 import os
 import pandas as pd
+import numpy as np
 import ocrtools.ocr.ocr as aocr
 
 import tesserocr
@@ -13,6 +14,33 @@ import ocrtools.pdf as apdf
 
 # TODO: make this cross platform
 os.environ["TESSDATA_PREFIX"] = "/opt/homebrew/share/tessdata/"
+
+# Out format: XYXY
+def df_to_ocrbox (df: pd.DataFrame):
+    # Convert dataframe from tesseract to OCRBoxes
+    df = df.dropna(subset=["text"])
+    boxes = list(np.array([
+        df.left, df.top, df.right, df.bottom
+    ]).T)
+    
+    ocr_boxes = []
+
+    for i in range(len(df)):
+        row = df.iloc[i]
+        text = str(row.text)
+
+        # Get rid of empty reads often caused by lines 
+        if not text.strip(" "):
+            continue
+
+        ocr_boxes.append(aocr.OCRBox(
+            [text],
+            aocr.otypes.BBox(*boxes[i]),
+            [df.index[i]],
+            [df.confidence.iloc[i]]
+        ))
+
+    return ocr_boxes
 
 
 class TesseractEngine:
@@ -43,10 +71,10 @@ class TesseractEngine:
         df.height /= img.height
         df.width += df.left
         df.height += df.top
-
         df.rename(columns = {"width": "right", "height": "bottom", "conf": "confidence"}, inplace=True)
+
         return aocr.OCRResult(
-            reads = df,
+            reads = df_to_ocrbox(df),
             tables = [],
             table_confidences = [],
             table_boxes = []

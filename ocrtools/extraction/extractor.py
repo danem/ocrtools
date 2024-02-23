@@ -4,11 +4,13 @@ from collections import defaultdict
 import os
 import datetime
 import re
+import numpy as np
 
 import ocrtools.types as otypes
 import ocrtools.ocr as oocr
 import ocrtools.pdf as opdf
 import ocrtools.extraction.tagger as otag
+import ocrtools.utils as outils
 
 ExtractionFn = Callable[[List[oocr.OCRBox]], List[Tuple[Any, oocr.OCRBox]]]
 
@@ -54,7 +56,7 @@ def _merge_extractors (
             group_stack.append(group)
 
     return result
-    
+
 class Extractor:
     def __init__ (
         self,
@@ -70,35 +72,28 @@ class Extractor:
         dpi: int = 100,
         logger: oocr.OCRLogger = None
     ):
-        pw, ph = page.rect.width, page.rect.height
-        result = defaultdict(list)
+        results = defaultdict(list)
         logs = defaultdict(list)
         mappings = []
 
-        # TODO: The math here is a bit sketchy to say the least...
-        dpi_scale = dpi / 72
-        idpi_scale = 72 / dpi
         for group in self._groups:
-            gbox = group.box.scale(pw*dpi_scale, ph*dpi_scale)
-            img, boxes = ocr.ocr_page(page, clip=group.box, dpi=dpi)
+            img, result = ocr.ocr_page(page, clip=group.box, dpi=dpi)
             for extractor in group.extractors:
-                targets = []
-                for box in boxes:
-                    vbox = box.box.scale(img.width * idpi_scale, img.height * idpi_scale)
-                    vbox = vbox.translate(gbox.x * idpi_scale, gbox.y * idpi_scale)
-                    vbox = vbox.scale(1/pw, 1/ph)
-                    if otypes.bbox_overlaps(extractor.box, vbox):
-                        targets.append(box)
-                mappings.append((img, extractor, targets))
+                targets = [box for box in result.reads if otypes.bbox_overlaps(extractor.box, box.box)]
+                mappings.append((img, group, extractor, targets))
 
-        for img, extractor, boxes in mappings:
+        for img, group, extractor, boxes in mappings:
             values = extractor.extractor(boxes)
+            to_clip = outils.page_space_to_clip_space(group.box)
+
             for value, box in values:
-                result[extractor.name].append(value)
-                lbox = oocr.OCRBox([f"{extractor.name}: {value}"], box.box, [0], 1, [])
+                results[extractor.name].append(value)
+                nbox = (box.box
+                    .translate(-group.box.x, -group.box.y)
+                )
+                print(nbox.as_tuple())
+                lbox = oocr.OCRBox([f"{extractor.name}: {value}"], nbox, [0], [1])
                 logs[img].append(lbox)
-            # else:
-                # logs[img] = []
 
         if logger:
             dname = os.path.basename(page.parent.name)
@@ -106,7 +101,7 @@ class Extractor:
             for img, boxes in logs.items():
                 logger(img,boxes,log_prefix)
 
-        return result
+        return results
 
 
 def make_extractor (merger: oocr.OCRBoxMerger, fn: Callable[[str], Any]) -> ExtractionFn:
