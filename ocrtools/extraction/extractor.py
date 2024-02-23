@@ -91,7 +91,6 @@ class Extractor:
                 nbox = (box.box
                     .translate(-group.box.x, -group.box.y)
                 )
-                print(nbox.as_tuple())
                 lbox = oocr.OCRBox([f"{extractor.name}: {value}"], nbox, [0], [1])
                 logs[img].append(lbox)
 

@@ -210,7 +210,7 @@ class OCRReader:
     ) -> Tuple[opdf.PageImage, OCRResult]:
         """
         Run OCR on the provided page, at the specified DPI, within the specified `clip` region.
-        Returns the page image, and a list of OCRBoxes in *page space* (not clip space).
+        Returns the page image, and an `OCRResult` with `OCRBox` in *page space* (not clip space).
         """
         clip = clip if clip else otypes.BBox.from_xyxy(0,0,1,1)
         key = self._cache_key(page, dpi, colorspace)
