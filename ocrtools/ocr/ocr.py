@@ -83,13 +83,15 @@ def _merge_ocr_boxes (box1: OCRBox, box2: OCRBox) -> OCRBox:
         box1.confidence + box2.confidence
     )
 
+
 def _merge_extracted_text (
     boxes: List[OCRBox],
     comparator: Callable[[float, float], bool],
     merger: Callable[[OCRBox, OCRBox], OCRBox],
     sort = True
 ) -> List[OCRBox]:
-    result = otypes.merger(boxes, comparator, merger)
+    cmp = lambda a, b: comparator(*otypes.calc_box_vector(a.box, b.box))
+    result = otypes.merger(boxes, cmp, merger)
     if sort:
         for i in range(len(result)):
             box = result[i]
