@@ -49,7 +49,7 @@ class OCRResult:
         ids = []
         boxes = []
         for box in self.reads:
-            if otypes.bbox_contains(region, box):
+            if otypes.bbox_contains(region, box.box):
                 boxes.append(box)
                 ids += box.ids
         # TODO: Include tables

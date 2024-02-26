@@ -49,6 +49,7 @@ class TesseractEngine:
         self._api = tesserocr.PyTessBaseAPI()
 
     def _extract_text (self, api, img) -> pd.DataFrame:
+        print("hi")
         if isinstance(img, Image.Image):
             api.SetImage(img)
         elif isinstance(img, apdf.PageImage):

@@ -114,7 +114,7 @@ def get_date (tagger: otag.INERTagger, merger: oocr.IOCRBoxMerger = oocr.Default
     return make_extractor(merger, lambda t: _get_date(tagger, t))
 
 # Extract the raw text from the OCR result
-def identity (merger: oocr.IOCRBoxMerger = oocr.TotalMerger) -> IExtractionFn:
+def identity (merger: oocr.IOCRBoxMerger = oocr.TotalMerger()) -> IExtractionFn:
     return make_extractor(merger, lambda t: t)
 
 
