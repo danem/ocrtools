@@ -29,12 +29,12 @@ class ExtractorGroup:
 
 def _merge_extraction_groups (group: ExtractorGroup, other_group: ExtractorGroup):
     nbox = otypes.merge_boxes(group.box, other_group.box)
-    group = ExtractorGroup(nbox, group.extractors + other_group.extractors)
-    return group
+    return ExtractorGroup(nbox, group.extractors + other_group.extractors)
 
 def _merge_extractors (extractors: List[FieldExtractor]):
     groups = [ExtractorGroup(fe.box, [fe]) for fe in extractors]
-    return otypes.merger(groups, otypes.bbox_overlaps, _merge_extraction_groups)
+    comp = lambda a, b: otypes.bbox_overlaps(a.box, b.box)
+    return otypes.merger(groups, comp, _merge_extraction_groups)
 
 class Extractor:
     def __init__ (
