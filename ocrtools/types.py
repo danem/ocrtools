@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Any, Callable
 import dataclasses
 import numpy as np
 
@@ -127,3 +127,31 @@ def merge_boxes (box1: BBox, box2: BBox) -> BBox:
 def expand_box (box: BBox, amt: float):
     x0,y0,x1,y1 = box
     return BBox.from_xyxy(x0-amt, y0-amt, x1+amt, y1+amt)
+
+def merger (
+    items: List[Any],
+    comparator: Callable[[Any, Any], bool],
+    merger: Callable[[Any, Any], Any],
+) -> List[Any]:
+    item_stack = list(items)
+    result = []
+
+    while len(item_stack):
+        item = item_stack.pop()
+        merged = []
+
+        for i, other_item in enumerate(item_stack):
+            if comparator(item, other_item):
+                item = merger(item, other_item)
+                merged.append(i)
+
+        if not len(merged):
+            result.append(item)
+        else:
+            for i in reversed(merged):
+                item_stack.pop(i)
+
+            item_stack.append(item)
+    return result
+
+    

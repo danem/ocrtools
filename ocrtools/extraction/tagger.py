@@ -35,7 +35,7 @@ class TokenSpan:
             span.end
         )
 
-NERTagger = Callable[[str], List[TokenSpan]]
+INERTagger = Callable[[str], List[TokenSpan]]
 
 
 # TODO: Figure out how to cache tokenization.
@@ -114,7 +114,7 @@ def _filter_non_ascii(string):
             filtered_string += char
     return filtered_string
 
-def run_tagger (tagger: NERTagger, txts: List[str], labels: List[str], confidence: float = -1):
+def run_tagger (tagger: INERTagger, txts: List[str], labels: List[str], confidence: float = -1):
     if not isinstance(txts, list):
         txts = [txts]
 
@@ -129,7 +129,7 @@ def run_tagger (tagger: NERTagger, txts: List[str], labels: List[str], confidenc
     return results
 
 
-def extract_date_strings (tagger: NERTagger, txts: Union[str,List[str]], confidence: float = 0.7) -> List[datetime.datetime]:
+def extract_date_strings (tagger: INERTagger, txts: Union[str,List[str]], confidence: float = 0.7) -> List[datetime.datetime]:
     date_txts = run_tagger(tagger, txts, labels=["DATE", "CARDINAL"], confidence=confidence)
     dates = []
     for dt in date_txts:

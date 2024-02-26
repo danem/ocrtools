@@ -80,7 +80,7 @@ class TesseractEngine:
             table_boxes = []
         )
 
-    def __call__(self, imgs: List[aocr.OCRResource]) -> List[aocr.OCRResult]:
+    def __call__(self, imgs: List[aocr.IOCRResource]) -> List[aocr.OCRResult]:
         if isinstance(imgs, apdf.PDFDoc):
             imgs = apdf.pdf_doc_to_imgs(imgs)
             imgs = [apdf.page_image_to_pil(p) for p in imgs]

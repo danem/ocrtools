@@ -55,10 +55,10 @@ class OCRResult:
         # TODO: Include tables
         return OCRResult(boxes)
 
-OCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
-OCREngine = Callable[[List[OCRResource]], List[OCRResult]] 
+IOCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
+IOCREngine = Callable[[List[IOCRResource]], List[OCRResult]] 
 
-def _ocr_resource_to_image (resource: OCRResource) -> Image.Image:
+def _ocr_resource_to_image (resource: IOCRResource) -> Image.Image:
     if isinstance(resource, opdf.PageImage):
         # Fastest way to go from PageImage to PIL image
         return opdf.page_image_to_pil(resource)
@@ -72,7 +72,7 @@ def _ocr_resource_to_image (resource: OCRResource) -> Image.Image:
 
 # Interface for functions sorting and merging word-level OCR boxes
 # For instance, you typically want to join word-level boxes into a single line box
-OCRBoxMerger = Callable[[List[OCRBox]], List[OCRBox]]
+IOCRBoxMerger = Callable[[List[OCRBox]], List[OCRBox]]
 
 def _merge_ocr_boxes (box1: OCRBox, box2: OCRBox) -> OCRBox:
     nbox = otypes.merge_boxes(box1.box, box2.box)
@@ -89,38 +89,17 @@ def _merge_extracted_text (
     merger: Callable[[OCRBox, OCRBox], OCRBox],
     sort = True
 ) -> List[OCRBox]:
-    box_stack = list(boxes)
-    result = []
-
-    while len(box_stack):
-        box = box_stack.pop()
-        merged = []
-
-        for i, other_box in enumerate(box_stack):
-            vec = otypes.calc_box_vector(box.box, other_box.box)
-            if comparator(*vec):
-                box = merger(box, other_box)
-                merged.append(i)
-
-        if not len(merged):
-            result.append(box)
-        else:
-            for i in reversed(merged):
-                box_stack.pop(i)
-
-            box_stack.append(box)
-
+    result = otypes.merger(boxes, comparator, merger)
     if sort:
         for i in range(len(result)):
             box = result[i]
             box_pairs = sorted(zip(box.ids, box.text, box.confidence))
             ids, text, confs = zip(*box_pairs)
             result[i] = OCRBox(text, box.box, ids, confs)
-
     return result
 
 
-def merge_horizontal (
+def _merge_horizontal (
     boxes: List[OCRBox],
     x_dist: int = 10,
     scale: float = 0.01
@@ -129,8 +108,7 @@ def merge_horizontal (
     return _merge_extracted_text(boxes, comp, _merge_ocr_boxes)
 
 
-# TODO: Fix this, it doesn't actually work...
-def merge_vertical (
+def _merge_vertical (
     boxes: List[OCRBox],
     y_dist: int = 1,
     scale: float = 0.01
@@ -138,12 +116,21 @@ def merge_vertical (
     comp = lambda x,y: y < (y_dist * scale)
     return _merge_extracted_text(boxes, comp, _merge_ocr_boxes)
 
-def OCRMerger (x_dist: int = 10, y_dist: int = 1) -> OCRBoxMerger:
+def OCRMerger (x_dist: int = 10, y_dist: int = 1) -> IOCRBoxMerger:
     def ret (boxes: List[OCRBox]) -> List[OCRBox]:
         if x_dist > 0:
-            boxes = merge_horizontal(boxes=boxes, x_dist=x_dist)
+            boxes = _merge_horizontal(boxes=boxes, x_dist=x_dist)
         if y_dist > 0:
-            boxes = merge_vertical(boxes=boxes, y_dist=y_dist)
+            boxes = _merge_vertical(boxes=boxes, y_dist=y_dist)
+        return boxes
+    return ret
+
+# Merge all boxes into one
+def TotalMerger () -> IOCRBoxMerger:
+    def ret (boxes: List[OCRBox]):
+        _,_,x,y = otypes.bboxes_extents([b.box for b in boxes]).as_tuple()
+        boxes = _merge_horizontal(boxes, x, 1)
+        boxes = _merge_vertical(boxes, y, 1)
         return boxes
     return ret
 
@@ -153,19 +140,12 @@ IdentMerger = lambda boxes: boxes
 # Merge lines
 DefaultMerger = OCRMerger(10,0)
 
-# Merge all boxes into one
-def TotalMerger (boxes: List[OCRBox]) -> List[OCRBox]:
-    _,_,x,y = otypes.bboxes_extents([b.box for b in boxes]).as_tuple()
-    boxes = merge_horizontal(boxes, x, 1)
-    boxes = merge_vertical(boxes, y, 1)
-    return boxes
-
 
 # Caching layer for OCR
 class OCRReader:
     def __init__ (
         self,
-        engine: OCREngine 
+        engine: IOCREngine 
     ):
         self._engine = engine
         self._cache  = outils.CacheDict(cache_len=100)

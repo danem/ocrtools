@@ -58,14 +58,14 @@ This writes images annotated with OCR and extraction result to `/tmp/ocr-logs/te
 OCRTools comes with `Tesseract` (via Tesserocr) and `Textract` interfaces. To use your own simply provide a function of the following type to `extractor.extract`.
 
 ```python
-OCRReader = Callable[[List[OCRResource]], List[OCRResult]]
+IOCREngine = Callable[[List[OCRResource]], List[OCRResult]]
 ```
 
 ##### Taggers
 
 OCRTools uses `spacy` and huggingface `tranformers` to identify entities such as dates and names within text. To use your own, simply provide a function of the following type:
 ```python
-NERTagger = Callable[[str], List[TokenSpan]]
+INERTagger = Callable[[str], List[TokenSpan]]
 ```
 
 

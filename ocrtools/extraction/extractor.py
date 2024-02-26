@@ -12,12 +12,12 @@ import ocrtools.pdf as opdf
 import ocrtools.extraction.tagger as otag
 import ocrtools.utils as outils
 
-ExtractionFn = Callable[[List[oocr.OCRBox]], List[Tuple[Any, oocr.OCRBox]]]
+IExtractionFn = Callable[[List[oocr.OCRBox]], List[Tuple[Any, oocr.OCRBox]]]
 
 @dataclasses.dataclass
 class FieldExtractor:
     name: str
-    extractor: ExtractionFn
+    extractor: IExtractionFn
     box: otypes.BBox
     priority: float = 1
 
@@ -27,35 +27,14 @@ class ExtractorGroup:
     box: otypes.BBox
     extractors: List[FieldExtractor]
 
+def _merge_extraction_groups (group: ExtractorGroup, other_group: ExtractorGroup):
+    nbox = otypes.merge_boxes(group.box, other_group.box)
+    group = ExtractorGroup(nbox, group.extractors + other_group.extractors)
+    return group
 
-def _merge_extractors (
-    extractors: List[FieldExtractor]
-):
-    group_stack = []
-    result = []
-    for fe in extractors:
-        group = ExtractorGroup(fe.box, [fe])
-        group_stack.append(group)
-
-    while len(group_stack):
-        group = group_stack.pop()
-        merged = []
-
-        for i, other_group in enumerate(group_stack):
-            if otypes.bbox_overlaps(group.box, other_group.box):
-                nbox = otypes.merge_boxes(group.box, other_group.box)
-                group = ExtractorGroup(nbox, group.extractors + other_group.extractors)
-                merged.append(i)
-
-        if not len(merged):
-            result.append(group)
-        else:
-            for i in reversed(merged):
-                group_stack.pop(i)
-
-            group_stack.append(group)
-
-    return result
+def _merge_extractors (extractors: List[FieldExtractor]):
+    groups = [ExtractorGroup(fe.box, [fe]) for fe in extractors]
+    return otypes.merger(groups, otypes.bbox_overlaps, _merge_extraction_groups)
 
 class Extractor:
     def __init__ (
@@ -103,7 +82,7 @@ class Extractor:
         return results
 
 
-def make_extractor (merger: oocr.OCRBoxMerger, fn: Callable[[str], Any]) -> ExtractionFn:
+def make_extractor (merger: oocr.IOCRBoxMerger, fn: Callable[[str], Any]) -> IExtractionFn:
     def ret (boxes: List[oocr.OCRBox]):
         boxes = merger(boxes)
         results = []
@@ -119,7 +98,7 @@ def make_extractor (merger: oocr.OCRBoxMerger, fn: Callable[[str], Any]) -> Extr
 # Extractors
 # -----------------
 
-def _get_date (tagger: otag.NERTagger, txts: List[str]) -> Optional[datetime.datetime]:
+def _get_date (tagger: otag.INERTagger, txts: List[str]) -> Optional[datetime.datetime]:
     # _txts = []
     # for t in txts:
     #     _txts.append(re.sub("[\-\_]", " ", t))
@@ -131,16 +110,16 @@ def _get_date (tagger: otag.NERTagger, txts: List[str]) -> Optional[datetime.dat
 
 # Extract date using the supplied NERTagger. Should be capable of finding dates within paragraphs
 # written in virtually any format
-def get_date (tagger: otag.NERTagger, merger: oocr.OCRBoxMerger = oocr.DefaultMerger) -> ExtractionFn:
+def get_date (tagger: otag.INERTagger, merger: oocr.IOCRBoxMerger = oocr.DefaultMerger) -> IExtractionFn:
     return make_extractor(merger, lambda t: _get_date(tagger, t))
 
 # Extract the raw text from the OCR result
-def identity (merger: oocr.OCRBoxMerger = oocr.TotalMerger) -> ExtractionFn:
+def identity (merger: oocr.IOCRBoxMerger = oocr.TotalMerger) -> IExtractionFn:
     return make_extractor(merger, lambda t: t)
 
 
 # Extract text matching the supplied regex
-def match (pattern: re.Pattern, merger: oocr.OCRBoxMerger = oocr.DefaultMerger) -> ExtractionFn:
+def match (pattern: re.Pattern, merger: oocr.IOCRBoxMerger = oocr.DefaultMerger) -> IExtractionFn:
     def ret (boxes: List[oocr.OCRBox]):
         boxes = merger(boxes)
         results = []

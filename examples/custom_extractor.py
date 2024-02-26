@@ -5,10 +5,10 @@ import ocrtools.pdf as opdf
 
 from typing import List, Union
 
-def _extract_organizations (tagger: oex.NERTagger, txts: Union[str, List[str]], conf: float = 0.96) -> List[str]:
+def _extract_organizations (tagger: oex.INERTagger, txts: Union[str, List[str]], conf: float = 0.96) -> List[str]:
     return oex.run_tagger(tagger, txts, labels = ["ORG", "PERSON"], confidence = conf)
 
-def org_extractor (org_tagger: oex.NERTagger, merger: oocr.OCRBoxMerger = oocr.DefaultMerger):
+def org_extractor (org_tagger: oex.INERTagger, merger: oocr.IOCRBoxMerger = oocr.DefaultMerger):
     return oex.make_extractor(merger, lambda t: _extract_organizations(org_tagger, t))
 
 
