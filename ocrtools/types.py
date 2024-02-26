@@ -1,5 +1,4 @@
 from typing import Tuple, List, Any, Callable
-import dataclasses
 import numpy as np
 
 # Boxes represent positions in relative space (ie as a percentage)

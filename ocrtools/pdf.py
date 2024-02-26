@@ -1,10 +1,6 @@
-import dataclasses
 from PIL import Image, ImageDraw
-import PIL
 from io import BytesIO
 from typing import List, Union, IO, Tuple, Callable
-import pandas as pd
-import numpy as np
 import fitz
 import os
 

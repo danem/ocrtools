@@ -1,14 +1,7 @@
-import sys
 from PIL import Image, ImageDraw
 from typing import Any, List, Union, Tuple, Callable
 import dataclasses
-import io
-import numpy as np
-import os
 import pandas as pd
-import tempfile
-import pathlib
-from collections import defaultdict
 
 import ocrtools.types as otypes
 import ocrtools.utils as outils

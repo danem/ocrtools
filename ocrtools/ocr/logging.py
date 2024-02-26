@@ -4,8 +4,6 @@ import pathlib
 import shutil
 import os
 from collections import defaultdict
-import dataclasses
-import json
 
 import ocrtools.ocr.ocr as ocr
 import ocrtools.pdf as opdf
