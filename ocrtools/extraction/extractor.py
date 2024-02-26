@@ -4,7 +4,6 @@ from collections import defaultdict
 import os
 import datetime
 import re
-import numpy as np
 
 import ocrtools.types as otypes
 import ocrtools.ocr as oocr
