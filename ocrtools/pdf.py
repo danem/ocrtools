@@ -80,9 +80,9 @@ def page_image_to_pil (pim: PageImage) -> Image.Image:
     return Image.frombytes(mode, (pim.width, pim.height), pim.samples)
 
 
-def get_pdf (doc: PDFResource) -> PDFDoc:
+def get_pdf (doc: PDFResource, pages: List[int] = None) -> PDFDoc:
     if isinstance(doc, PDFDoc):
-        return doc
+        pass
     elif isinstance(doc, BytesIO):
         name = doc.name
         doc = fitz.open(stream=doc)
@@ -93,7 +93,7 @@ def get_pdf (doc: PDFResource) -> PDFDoc:
     elif not isinstance(doc, fitz.Document):
         doc = fitz.open(doc)
     
-    return PDFDoc(doc)
+    return pdf_subset(PDFDoc(doc), pages)
 
 
 def pdf_subset (doc: PDFResource, pages: List[int] = []) -> PDFDoc:
