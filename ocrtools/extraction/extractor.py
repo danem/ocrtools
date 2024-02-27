@@ -43,6 +43,9 @@ class Extractor:
         self._extractors = extractors
         self._groups = _merge_extractors(extractors)
     
+    def groups (self):
+        return self._groups
+    
     def extract (
         self,
         ocr: oocr.OCRReader,
@@ -111,6 +114,13 @@ def _get_date (tagger: otag.INERTagger, txts: List[str]) -> Optional[datetime.da
 # written in virtually any format
 def get_date (tagger: otag.INERTagger, merger: oocr.IOCRBoxMerger = oocr.DefaultMerger) -> IExtractionFn:
     return make_extractor(merger, lambda t: _get_date(tagger, t))
+
+# Extract named entities (such as person, cities, companies, etc) using the supplied NERTagger. Should be capable of finding 
+# named entities within paragraphs written in virtually any format
+# Supplied merger dicates the creation of strings from the OCR result. By default words in a line are grouped together
+def get_named_entity (tagger: otag.INERTagger, merger: oocr.IOCRBoxMerger = oocr.DefaultMerger, confidence: float = 0.7) -> IExtractionFn:
+    fn = lambda t: otag.run_tagger(tagger, t, ["ORG", "PERSON"], confidence=confidence)
+    return make_extractor(merger, fn)
 
 # Extract the raw text from the OCR result
 def identity (merger: oocr.IOCRBoxMerger = oocr.TotalMerger()) -> IExtractionFn:

@@ -142,5 +142,6 @@ class TextractEngine:
 
         return results
 
-def TextractReader (bucket_name, aws_profile):
-    return aocr.OCRReader(TextractEngine(bucket_name, aws_profile))
+class TextractReader (aocr.OCRReader):
+    def __init__(self, bucket_name, aws_profile):
+        super().__init__(TextractEngine(bucket_name, aws_profile))

@@ -95,5 +95,7 @@ class TesseractEngine:
             results.append(res)
         return results
 
-def TesseractReader ():
-    return aocr.OCRReader(TesseractEngine())
+
+class TesseractReader (aocr.OCRReader):
+    def __init__(self):
+        super().__init__(TesseractEngine())

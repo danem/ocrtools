@@ -94,7 +94,7 @@ def _merge_extracted_text (
     return result
 
 
-def _merge_horizontal (
+def merge_horizontal (
     boxes: List[OCRBox],
     x_dist: int = 10,
     scale: float = 0.01
@@ -103,7 +103,7 @@ def _merge_horizontal (
     return _merge_extracted_text(boxes, comp, _merge_ocr_boxes)
 
 
-def _merge_vertical (
+def merge_vertical (
     boxes: List[OCRBox],
     y_dist: int = 1,
     scale: float = 0.01
@@ -114,9 +114,9 @@ def _merge_vertical (
 def OCRMerger (x_dist: int = 10, y_dist: int = 1) -> IOCRBoxMerger:
     def ret (boxes: List[OCRBox]) -> List[OCRBox]:
         if x_dist > 0:
-            boxes = _merge_horizontal(boxes=boxes, x_dist=x_dist)
+            boxes = merge_horizontal(boxes=boxes, x_dist=x_dist)
         if y_dist > 0:
-            boxes = _merge_vertical(boxes=boxes, y_dist=y_dist)
+            boxes = merge_vertical(boxes=boxes, y_dist=y_dist)
         return boxes
     return ret
 
@@ -124,8 +124,8 @@ def OCRMerger (x_dist: int = 10, y_dist: int = 1) -> IOCRBoxMerger:
 def TotalMerger () -> IOCRBoxMerger:
     def ret (boxes: List[OCRBox]):
         _,_,x,y = otypes.bboxes_extents([b.box for b in boxes]).as_tuple()
-        boxes = _merge_horizontal(boxes, x, 1)
-        boxes = _merge_vertical(boxes, y, 1)
+        boxes = merge_horizontal(boxes, x, 1)
+        boxes = merge_vertical(boxes, y, 1)
         return boxes
     return ret
 

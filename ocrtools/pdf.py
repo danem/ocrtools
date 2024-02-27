@@ -78,22 +78,26 @@ def page_image_to_pil (pim: PageImage) -> Image.Image:
 
 def get_pdf (doc: PDFResource, pages: List[int] = None) -> PDFDoc:
     if isinstance(doc, PDFDoc):
-        pass
+        return pdf_subset(doc, pages)
     elif isinstance(doc, BytesIO):
         name = doc.name
         doc = fitz.open(stream=doc)
         doc.name = name
+        return pdf_subset(PDFDoc(doc), pages)
     elif isinstance(doc, str):
         with open(doc) as fp:
             return get_pdf(fp)
     elif not isinstance(doc, fitz.Document):
-        doc = fitz.open(doc)
+        return pdf_subset(PDFDoc(fitz.open(doc)), pages)
+    else:
+        raise Exception("Invalid type")
     
-    return pdf_subset(PDFDoc(doc), pages)
 
 
-def pdf_subset (doc: PDFResource, pages: List[int] = []) -> PDFDoc:
-    doc = get_pdf(doc)
+def pdf_subset (doc: PDFDoc, pages: List[int] = []) -> PDFDoc:
+    if not pages:
+        return doc
+
     ndoc = fitz.Document()
 
     fname, ext = os.path.splitext(doc.doc.name)

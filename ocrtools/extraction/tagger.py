@@ -35,12 +35,17 @@ class TokenSpan:
             span.end
         )
 
-INERTagger = Callable[[str], List[TokenSpan]]
+
+class INERTagger:
+    def __call__(self, txt: str) -> List[TokenSpan]:
+        pass
 
 
 # TODO: Figure out how to cache tokenization.
-class SpacyTagger:
+class SpacyTagger(INERTagger):
     def __init__(self, model: Union[str, "spacy.language.Language"] = "en_core_web_trf") -> None:
+        super().__init__()
+
         self.model = model
         if isinstance(model, str):
             # TODO: Hack
@@ -56,8 +61,10 @@ class SpacyTagger:
         return toks
 
 # Seems to perform well for Date tagging, even though it is a french model...
-class CambertTagger:
+class CambertTagger(INERTagger):
     def __init__(self) -> None:
+        super().__init__()
+
         os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
         _tokenizer = transformers.AutoTokenizer.from_pretrained("Jean-Baptiste/camembert-ner-with-dates")
         _model = transformers.AutoModelForTokenClassification.from_pretrained("Jean-Baptiste/camembert-ner-with-dates")
@@ -80,8 +87,9 @@ class CambertTagger:
 DateTagger = CambertTagger
 
 # Seems to perform better on organization tagging
-class BertTagger:
+class BertTagger(INERTagger):
     def __init__(self) -> None:
+        super().__init__()
         tokenizer = transformers.AutoTokenizer.from_pretrained("dslim/bert-base-NER")
         model = transformers.AutoModelForTokenClassification.from_pretrained("dslim/bert-base-NER")
         self.model = transformers.pipeline("ner", model=model, tokenizer=tokenizer)
@@ -106,6 +114,8 @@ class BertTagger:
         if curr_tok.label:
             toks.append(curr_tok)
         return toks
+
+NamedEntityTagger = BertTagger
 
 def _filter_non_ascii(string):
     filtered_string = ""
@@ -140,3 +150,7 @@ def extract_date_strings (tagger: INERTagger, txts: Union[str,List[str]], confid
         except:
             pass
     return dates
+
+def extract_named_entities (tagger: INERTagger, txts: Union[str, List[str]], confidence: float = 0.7) -> List[str]:
+    return run_tagger(tagger, txts, labels=["ORG", "PERSON"], confidence=confidence)
+

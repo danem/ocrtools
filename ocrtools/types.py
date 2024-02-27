@@ -111,7 +111,7 @@ def bboxes_extents (boxes: List[BBox]) -> BBox:
         min_y = min(min_y, y1)
         max_x = max(max_x, x2)
         max_y = max(max_y, y2)
-    return BBox.from_xyxy(x1,y1,x2,y2)
+    return BBox.from_xyxy(min_x,min_y,max_x,max_y)
 
 def merge_boxes (box1: BBox, box2: BBox) -> BBox:
     box1 = box1.as_tuple()
