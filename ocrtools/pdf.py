@@ -7,11 +7,6 @@ import os
 import ocrtools.types as stypes
 
 
-# This is ugly, but whatever..
-# I want to keep the metadata of the original PDFReader
-# intact, but I want to be able to conveniently 
-# pass along only a subset of the pages...
-# TODO: This isn't needed after switching to fitz
 class PDFDoc:
     def __init__(
         self,
@@ -86,7 +81,7 @@ def get_pdf (doc: PDFResource, pages: List[int] = None) -> PDFDoc:
         return pdf_subset(PDFDoc(doc), pages)
     elif isinstance(doc, str):
         with open(doc) as fp:
-            return get_pdf(fp)
+            return get_pdf(fp, pages)
     elif not isinstance(doc, fitz.Document):
         return pdf_subset(PDFDoc(fitz.open(doc)), pages)
     else:
@@ -107,13 +102,13 @@ def pdf_subset (doc: PDFDoc, pages: List[int] = []) -> PDFDoc:
     for p in sorted(pages):
         ndoc.insert_pdf(doc.doc, p, p)
 
-    res = PDFDoc(ndoc, pages)
+    res = PDFDoc(ndoc, range(len(pages)))
     return res
 
 def pdf_page_to_img (
     page: Page,
     clip: stypes.BBox = None,
-    colorspace: Colorspace = CS_RGB, # TODO: CS_GRAY Stopped working for some reason when I restarted the environment
+    colorspace: Colorspace = CS_RGB,
     dpi: int = None,
     pil: bool = False
 ) -> PageImage:
@@ -129,7 +124,7 @@ def pdf_doc_to_imgs (
     doc: PDFResource, 
     pages: List[int] = [],
     clip: stypes.BBox = None,
-    colorspace: Colorspace = CS_RGB, # TODO: CS_GRAY Stopped working for some reason when I restarted the environment
+    colorspace: Colorspace = CS_RGB,
     dpi: int = None,
     pil: bool = False
 ) -> List[PageImage]:
