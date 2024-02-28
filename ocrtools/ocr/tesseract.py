@@ -90,7 +90,7 @@ class TesseractEngine:
 
         results = []
         for img in imgs:
-            img = aocr._ocr_resource_to_image(img)
+            _, img = aocr._ocr_resource_to_image(img)
             res = self._extract_text(self._api, img)
             results.append(res)
         return results

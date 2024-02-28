@@ -119,8 +119,7 @@ def get_date (tagger: otag.INERTagger, merger: oocr.IOCRBoxMerger = oocr.Default
 # named entities within paragraphs written in virtually any format
 # Supplied merger dicates the creation of strings from the OCR result. By default words in a line are grouped together
 def get_named_entity (tagger: otag.INERTagger, merger: oocr.IOCRBoxMerger = oocr.DefaultMerger, confidence: float = 0.7) -> IExtractionFn:
-    fn = lambda t: otag.run_tagger(tagger, t, ["ORG", "PERSON"], confidence=confidence)
-    return make_extractor(merger, fn)
+    return make_extractor(merger, lambda t: otag.extract_named_entities(tagger, t, confidence=confidence))
 
 # Extract the raw text from the OCR result
 def identity (merger: oocr.IOCRBoxMerger = oocr.TotalMerger()) -> IExtractionFn:

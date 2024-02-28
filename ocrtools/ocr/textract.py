@@ -7,6 +7,7 @@ import boto3
 import io
 import os
 import pandas as pd
+import numpy as np
 import trp
 import uuid
 
@@ -14,8 +15,32 @@ import ocrtools.ocr.ocr as aocr
 import ocrtools.pdf as apdf
 import ocrtools.types as stypes
 
-def generate_fname () -> str:
-    return str(uuid.uuid4().bytes)
+def df_to_ocrbox (df: pd.DataFrame):
+    # Convert dataframe from tesseract to OCRBoxes
+    df = df.dropna(subset=["text"])
+    boxes = list(np.array([
+        df.left, df.top, df.right, df.bottom
+    ]).T)
+    
+    ocr_boxes = []
+
+    for i in range(len(df)):
+        row = df.iloc[i]
+        text = str(row.text)
+
+        # Get rid of empty reads often caused by lines 
+        if not text.strip(" "):
+            continue
+
+        ocr_boxes.append(aocr.OCRBox(
+            [text],
+            aocr.otypes.BBox(*boxes[i]),
+            [df.id[i]],
+            [df.confidence.iloc[i]]
+        ))
+
+    return ocr_boxes
+
 
 def _trpbox_to_bbox (bbox: trp.BoundingBox):
     return stypes.BBox.from_xywh(bbox.left, bbox.top, bbox.width, bbox.height)
@@ -59,7 +84,7 @@ class TextractEngine:
                         x1,y1,x2,y2 = _trpbox_to_bbox(cell.geometry.boundingBox).as_tuple()
                         row_items.append(cell.text)
                         row_confs.append(cell.confidence)
-                        ridxs.append((c,r))
+                        ridxs.append((cell.id, t,c,r))
                         reads.append(cell.text)
                         rconfs.append(cell.confidence)
                         rx1.append(x1); rx2.append(x2)
@@ -84,27 +109,32 @@ class TextractEngine:
             for block in blocks.values():
                 x1,y1,x2,y2 = _trpbox_to_bbox(block.geometry.bounding_box).as_tuple()
                 reads.append(block.text)
-                ridxs.append(None)
                 rids.append(block.id)
                 rconfs.append(block.confidence)
                 rx1.append(x1); rx2.append(x2)
                 ry1.append(y1); ry2.append(y2)
 
-            rdf = pd.DataFrame(zip(reads, rids, rtidx, ridxs, rconfs, rx1, ry1, rx2, ry2), columns = ["text", "id", "table_num", "table_idx", "confidence", "left", "top", "right", "bottom"])
+            rdf = pd.DataFrame(zip(reads, rids, rtidx, rconfs, rx1, ry1, rx2, ry2), columns = ["text", "id", "table_num", "confidence", "left", "top", "right", "bottom"])
+            rdf = df_to_ocrbox(rdf)
+
+            ridxs = {k: (t,c,r) for k,t,c,r in ridxs}
             pages.append(aocr.OCRResult(
                 rdf,
                 tables,
                 tconfs,
-                tboxes
+                tboxes,
+                ridxs
             ))
         return pages
     
-    def _initiate_image_request (self, resource: Image.Image) -> Any:
-        fname = generate_fname()
+    def _initiate_image_request (self, name: str, resource: Image.Image) -> Any:
+        name = os.path.basename(name) + ".jpeg"
         buf = io.BytesIO()
+        buf.name = name
         resource.save(buf,"jpeg")
-        self._s3.upload_fileobj(buf, self._bucket, fname)
-        url = f"s3://{self._bucket}/{fname}"
+        buf.seek(0)
+        self._s3.upload_fileobj(buf, self._bucket, name)
+        url = f"s3://{self._bucket}/{name}"
 
         return call_textract(url, features = [Textract_Features.TABLES], boto3_textract_client=self._tx)
 
@@ -124,22 +154,21 @@ class TextractEngine:
         doc = trp.Document(TDocumentSchema().dump(ordered_doc))
         return self._extract_tables(doc)
 
-    def __call__ (self, resources) -> List[pd.DataFrame]:
-
+    def __call__ (self, resources) -> List[aocr.OCRResult]:
         if isinstance(resources, apdf.PDFDoc):
             res = self._initiate_document_request(resources)
             return self._analyze_document(res)
-
         elif not isinstance(resources, list):
             resources = [resources]
 
         results = []
         for resource in resources:
-            resource = aocr._ocr_resource_to_image(resource)
-            res = self._initiate_image_request(resource)
+            name, resource = aocr._ocr_resource_to_image(resource)
+            res = self._initiate_image_request(name, resource)
             res = self._analyze_document(res)
             results.append(res)
 
+        results = [ x for xs in results for x in xs ]
         return results
 
 class TextractReader (aocr.OCRReader):

@@ -1,7 +1,9 @@
 from PIL import Image, ImageDraw
-from typing import Any, List, Union, Tuple, Callable
+from typing import Any, List, Union, Tuple, Callable, Dict
 import dataclasses
 import pandas as pd
+import uuid
+import os
 
 import ocrtools.types as otypes
 import ocrtools.utils as outils
@@ -28,13 +30,13 @@ class OCRResult:
         tables: List[pd.DataFrame] = None,
         table_confidences: List[pd.DataFrame] = None,
         table_boxes: List[otypes.BBox] = None,
-        read_to_table_mapping: List[Tuple[int,int]] = None # TODO
+        read_to_table_mapping: Dict[Any,Tuple[int,int,int]] = None # TODO
     ):
-        self.reads = reads if reads else []
-        self.tables = tables if tables else []
+        self.reads = reads if reads is not None else []
+        self.tables = tables if tables is not None else []
         self.table_confidences = table_confidences if table_confidences else []
         self.table_boxes = table_boxes if table_boxes else []
-        self.read_to_table_mapping = read_to_table_mapping if read_to_table_mapping else []
+        self.read_to_table_mapping = read_to_table_mapping if read_to_table_mapping else {}
         self.extent = otypes.bboxes_extents([r.box for r in self.reads])
     
     def subset (self, region: otypes.BBox):
@@ -51,14 +53,26 @@ class OCRResult:
 IOCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
 IOCREngine = Callable[[List[IOCRResource]], List[OCRResult]] 
 
-def _ocr_resource_to_image (resource: IOCRResource) -> Image.Image:
+def _generate_fname () -> str:
+    return str(uuid.uuid4().hex)
+
+def _page_name (page: opdf.Page):
+    pdir = os.path.dirname(page.parent.name)
+    fname = os.path.basename(page.parent.name)
+    fname, ext = os.path.splitext(fname)
+    return os.path.join(pdir, f"{fname}[{page.number}]{ext}")
+
+def _ocr_resource_to_image (resource: IOCRResource) -> Tuple[str, Image.Image]:
     if isinstance(resource, opdf.PageImage):
         # Fastest way to go from PageImage to PIL image
-        return opdf.page_image_to_pil(resource)
+        fname = _generate_fname()
+        return fname, opdf.page_image_to_pil(resource)
     elif isinstance(resource, opdf.Page):
-        return opdf.page_image_to_pil(opdf.pdf_page_to_img(resource))
+        fname = _page_name(resource)
+        return fname, opdf.page_image_to_pil(opdf.pdf_page_to_img(resource))
     elif isinstance(resource, Image.Image):
-        return resource
+        fname = _generate_fname()
+        return fname, resource
     else:
         raise Exception(f"Invalid resource type {type(resource)}")
 
@@ -193,7 +207,8 @@ class OCRReader:
             return res
         else:
             img = opdf.pdf_page_to_img(page, clip=clip, dpi=dpi, colorspace=colorspace)
-            ocr_result = self._engine(img)[0]
+            ocr_result = self._engine(img)
+            ocr_result = ocr_result[0]
 
             # Transform the reads into page space
             clip2page = outils.clip_space_to_page_space(clip)
