@@ -63,7 +63,7 @@ def draw_ocr_result (
     img: Image.Image, 
     result: ocr.OCRResult
 ) -> Image.Image:
-    boxes = ocr.df_to_ocrbox(result.reads)
+    boxes = result.reads
     img = draw_ocr_boxes(img, boxes)
     return draw_boxes(img, result.table_boxes, "green")
 

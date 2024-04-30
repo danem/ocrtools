@@ -80,22 +80,24 @@ class TesseractEngine:
             table_boxes = []
         )
 
-    def __call__(self, imgs: List[aocr.IOCRResource]) -> List[aocr.OCRResult]:
-        if isinstance(imgs, apdf.PDFDoc):
-            imgs = apdf.pdf_doc_to_imgs(imgs)
-            imgs = [apdf.page_image_to_pil(p) for p in imgs]
+    def __call__(self, img: aocr.IOCRResource) -> aocr.OCRResult:
+        _, img = aocr._ocr_resource_to_image(img)
+        res = self._extract_text(self._api, img)
+        return res
 
-        if not isinstance(imgs, list):
-            imgs = [imgs]
-
-        results = []
-        for img in imgs:
-            _, img = aocr._ocr_resource_to_image(img)
-            res = self._extract_text(self._api, img)
-            results.append(res)
-        return results
+def enable_scollview_debugging (engine: TesseractEngine):
+    engine._api.SetVariable("interactive_display_mode", "T")
+    engine._api.SetVariable("classify_debug_level", '1')
+    engine._api.SetVariable("textord_baseline_debug", '1')
+    engine._api.SetVariable("textord_debug_images", '1')
+    engine._api.SetVariable("textord_tablefind_show_mark", '1')
 
 
-class TesseractReader (aocr.OCRReader):
-    def __init__(self):
-        super().__init__(TesseractEngine())
+class TesseractReader (aocr.SimpleOCRReader):
+    def __init__(self, engine: TesseractEngine = None):
+        super().__init__(engine if engine else TesseractEngine)
+
+class TesseractReaderThreaded (aocr.ThreadedOCRReader):
+    def __init__(self, process_count: int = 1):
+        super().__init__(TesseractEngine, process_count)
+

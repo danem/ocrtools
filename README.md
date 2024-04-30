@@ -58,7 +58,7 @@ This writes images annotated with OCR and extraction result to `/tmp/ocr-logs/te
 OCRTools comes with `Tesseract` (via Tesserocr) and `Textract` interfaces. To use your own simply provide a function of the following type to `extractor.extract`.
 
 ```python
-IOCREngine = Callable[[List[OCRResource]], List[OCRResult]]
+IOCREngine = Callable[[OCRResource], OCRResult]
 ```
 
 ##### Taggers

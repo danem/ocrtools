@@ -4,6 +4,10 @@ import dataclasses
 import pandas as pd
 import uuid
 import os
+import queue
+import time
+import threading
+import concurrent.futures
 
 import ocrtools.types as otypes
 import ocrtools.utils as outils
@@ -51,7 +55,7 @@ class OCRResult:
         return OCRResult(boxes)
 
 IOCRResource = Union[Image.Image, opdf.PageImage, opdf.Page]
-IOCREngine = Callable[[List[IOCRResource]], List[OCRResult]] 
+IOCREngine = Callable[[IOCRResource], OCRResult] 
 
 def _generate_fname () -> str:
     return str(uuid.uuid4().hex)
@@ -113,7 +117,7 @@ def merge_horizontal (
     x_dist: int = 10,
     scale: float = 0.01
 ) -> List[OCRBox]:
-    comp = lambda x,y: x < (x_dist * scale) and y <= (1 * scale)
+    comp = lambda x,y: x < (x_dist * scale) and y == 0 #<= (1 * scale)
     return _merge_extracted_text(boxes, comp, _merge_ocr_boxes)
 
 
@@ -152,12 +156,12 @@ DefaultMerger = OCRMerger(10,0)
 
 # Caching layer for OCR
 class OCRReader:
-    def __init__ (
-        self,
-        engine: IOCREngine 
-    ):
-        self._engine = engine
+    def __init__ (self):
         self._cache  = outils.CacheDict(cache_len=100)
+    
+    def _perform_ocr (self, imgs: List[opdf.PageImage]) -> List[Tuple[opdf.PageImage, OCRResult]]:
+        # Overload to support multi-threaded readers
+        raise Exception("Not implemented")
     
     def _cache_key (
         self, 
@@ -190,34 +194,81 @@ class OCRReader:
                 new_entries.append((img, extent, result))
         self._cache[key] = new_entries
     
-    def ocr_page (
+    
+    def ocr_pages (
         self, 
-        page: opdf.Page, 
+        pages: List[opdf.Page],
         clip: otypes.BBox = None, 
         dpi: int = None, 
         colorspace: opdf.Colorspace = opdf.CS_RGB
-    ) -> Tuple[opdf.PageImage, OCRResult]:
+    ) -> List[Tuple[opdf.PageImage, OCRResult]]:
         """
-        Run OCR on the provided page, at the specified DPI, within the specified `clip` region.
-        Returns the page image, and an `OCRResult` with `OCRBox` in *page space* (not clip space).
+        Run OCR on the provided pages, at the specified DPI, within the specified `clip` region.
+        Returns the page images, and `OCRResults` with `OCRBox` in *page space* (not clip space).
         """
-        clip = clip if clip else otypes.BBox.from_xyxy(0,0,1,1)
-        key = self._cache_key(page, dpi, colorspace)
-        if res := self._cache_lookup(key, clip):
-            return res
-        else:
-            img = opdf.pdf_page_to_img(page, clip=clip, dpi=dpi, colorspace=colorspace)
-            ocr_result = self._engine(img)
-            ocr_result = ocr_result[0]
+        results = []
+        imgs = []
 
+        clip = clip if clip else otypes.BBox.from_xyxy(0,0,1,1)
+        for page in pages:
+            key = self._cache_key(page, dpi, colorspace)
+            if res := self._cache_lookup(key, clip):
+                results.append(res)
+            else:
+                img = opdf.pdf_page_to_img(page, clip=clip, dpi=dpi, colorspace=colorspace)
+                imgs.append(img)
+
+        ocr_results = self._perform_ocr(imgs)
+        for img, ocr_result in ocr_results:
             # Transform the reads into page space
             clip2page = outils.clip_space_to_page_space(clip)
             for read in ocr_result.reads:
                 read.box = read.box.transform(clip2page)
 
             self._cache_add(key, clip, img, ocr_result)
-            return img, ocr_result
+            results.append((img, ocr_result))
 
+        return results
+
+    def ocr_page (
+        self, 
+        page: opdf.Page,
+        clip: otypes.BBox = None, 
+        dpi: int = None, 
+        colorspace: opdf.Colorspace = opdf.CS_RGB
+    ) -> Tuple[opdf.PageImage, OCRResult]:
+        results = self.ocr_pages([page], clip, dpi, colorspace)
+        return results[0]
+
+
+class SimpleOCRReader (OCRReader):
+    def __init__(self, engine: IOCREngine):
+        super().__init__()
+        self.engine = engine
+    
+    def _perform_ocr(self, imgs: List[opdf.PageImage]) -> List[Tuple[opdf.PageImage, OCRResult]]:
+        results = [self.engine(img) for img in imgs]
+        return zip(imgs, results)
+
+
+class ThreadedOCRReader (OCRReader):
+    def __init__(self, engine_ctor, thread_count):
+        super().__init__()
+        
+        self._thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=thread_count)
+        self._engine_pool = queue.Queue()
+        for _ in range(thread_count):
+            self._engine_pool.put(engine_ctor())
+    
+    def _ocr_task (self, input: opdf.PageImage):
+        engine = self._engine_pool.get()
+        result = engine(input)
+        self._engine_pool.put(engine)
+        return result
+    
+    def _perform_ocr(self, imgs: List[opdf.PageImage]) -> List[Tuple[opdf.PageImage, OCRResult]]:
+        results = self._thread_pool.map(self._ocr_task, imgs)
+        return zip(imgs, results)
 
 
 
