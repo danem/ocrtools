@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import Dict
 from collections import OrderedDict
 import numpy as np
 import ocrtools.types as otypes
@@ -6,7 +6,7 @@ import ocrtools.types as otypes
 
 # Turns {dog: ["puppy", "canine"]} into {canine: dog, puppy: dog}
 # Useful for creating normalizing mappings
-def invert_mapping (mapping: Dict):
+def invert_mapping(mapping: Dict):
     res = {}
     for k, v in mapping.items():
         if isinstance(v, list):
@@ -40,26 +40,17 @@ class CacheDict(OrderedDict):
 
         return val
 
-# TODO: Might be better to place these elsewhere...
-def page_space_to_image_space (pw, ph, dpi):
-    dpi_scale = dpi / 72
-    return np.array([
-        [pw * dpi_scale, 0, 0],
-        [0, ph * dpi_scale, 0],
-        [0, 0, 1]
-    ])
 
-def clip_space_to_page_space (clip: otypes.BBox):
-    return np.array([
-        [clip.width, 0, clip.x],
-        [0, clip.height, clip.y],
-        [0, 0, 1]
-    ])
+# TODO: Might be better to place these elsewhere...
+def page_space_to_image_space(pw, ph, dpi):
+    dpi_scale = dpi / 72
+    return np.array([[pw * dpi_scale, 0, 0], [0, ph * dpi_scale, 0], [0, 0, 1]])
+
+
+def clip_space_to_page_space(clip: otypes.BBox):
+    return np.array([[clip.width, 0, clip.x], [0, clip.height, clip.y], [0, 0, 1]])
+
 
 # TODO: Not sure this is right
-def page_space_to_clip_space (clip: otypes.BBox):
-    return np.array([
-        [1, 0, clip.x],
-        [0, 1, clip.y],
-        [0,0,1]
-    ])
+def page_space_to_clip_space(clip: otypes.BBox):
+    return np.array([[1, 0, clip.x], [0, 1, clip.y], [0, 0, 1]])

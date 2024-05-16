@@ -1,6 +1,6 @@
-from PIL import Image, ImageDraw
+from PIL import Image
 from io import BytesIO
-from typing import List, Union, IO, Tuple, Callable
+from typing import List, Union, IO
 import fitz
 import os
 
@@ -8,26 +8,22 @@ import ocrtools.types as stypes
 
 
 class PDFDoc:
-    def __init__(
-        self,
-        doc: fitz.Document,
-        page_ids: List[int] = None
-    ) -> None:
+    def __init__(self, doc: fitz.Document, page_ids: List[int] = None) -> None:
         self.doc = doc
         if not page_ids:
             page_ids = list(range(self.doc.page_count))
         self.page_ids = sorted(page_ids)
         self._pages = []
-    
-    def __getitem__ (self, idx):
+
+    def __getitem__(self, idx):
         if len(self._pages) > idx:
             return self._pages[idx]
 
-        for i,p in enumerate(self.pages()):
+        for i, p in enumerate(self.pages()):
             if i == idx:
                 return p
-    
-    def pages (self):
+
+    def pages(self):
         if len(self._pages) == self.page_ids:
             return self._pages
 
@@ -47,7 +43,8 @@ FileDataError = fitz.FileDataError
 CS_GRAY = fitz.csGRAY
 CS_RGB = fitz.csRGB
 
-def _get_page_image_mode (pim: PageImage):
+
+def _get_page_image_mode(pim: PageImage):
     unmultiply = False
     cspace = pim.colorspace
     if cspace is None:
@@ -63,15 +60,17 @@ def _get_page_image_mode (pim: PageImage):
 
     return mode
 
-def _get_page_image_pixel_size (pim: PageImage):
+
+def _get_page_image_pixel_size(pim: PageImage):
     return pim.colorspace.n
 
-def page_image_to_pil (pim: PageImage) -> Image.Image:
+
+def page_image_to_pil(pim: PageImage) -> Image.Image:
     mode = _get_page_image_mode(pim)
     return Image.frombytes(mode, (pim.width, pim.height), pim.samples)
 
 
-def get_pdf (doc: PDFResource, pages: List[int] = None) -> PDFDoc:
+def get_pdf(doc: PDFResource, pages: List[int] = None) -> PDFDoc:
     if isinstance(doc, PDFDoc):
         return pdf_subset(doc, pages)
     elif isinstance(doc, BytesIO):
@@ -86,10 +85,9 @@ def get_pdf (doc: PDFResource, pages: List[int] = None) -> PDFDoc:
         return pdf_subset(PDFDoc(fitz.open(doc)), pages)
     else:
         raise Exception("Invalid type")
-    
 
 
-def pdf_subset (doc: PDFDoc, pages: List[int] = []) -> PDFDoc:
+def pdf_subset(doc: PDFDoc, pages: List[int] = []) -> PDFDoc:
     if not pages:
         return doc
 
@@ -105,28 +103,30 @@ def pdf_subset (doc: PDFDoc, pages: List[int] = []) -> PDFDoc:
     res = PDFDoc(ndoc, range(len(pages)))
     return res
 
-def pdf_page_to_img (
+
+def pdf_page_to_img(
     page: Page,
     clip: stypes.BBox = None,
     colorspace: Colorspace = CS_RGB,
     dpi: int = None,
-    pil: bool = False
+    pil: bool = False,
 ) -> PageImage:
     clip = clip.as_tuple("xyxy", page.rect.width, page.rect.height) if clip else None
-    img = page.get_pixmap(alpha = False, annots=False, clip = clip, dpi = dpi, colorspace=colorspace)
+    img = page.get_pixmap(
+        alpha=False, annots=False, clip=clip, dpi=dpi, colorspace=colorspace
+    )
     if pil:
         img = page_image_to_pil(img)
     return img
 
 
-
-def pdf_doc_to_imgs (
-    doc: PDFResource, 
+def pdf_doc_to_imgs(
+    doc: PDFResource,
     pages: List[int] = [],
     clip: stypes.BBox = None,
     colorspace: Colorspace = CS_RGB,
     dpi: int = None,
-    pil: bool = False
+    pil: bool = False,
 ) -> List[PageImage]:
 
     doc = get_pdf(doc)
@@ -135,7 +135,7 @@ def pdf_doc_to_imgs (
         pages = [doc.doc.load_page(i) for i in pages]
     else:
         pages = doc.doc.pages()
-    
+
     results = []
     for p in pages:
         img = pdf_page_to_img(p, clip=clip, colorspace=colorspace, dpi=dpi, pil=pil)

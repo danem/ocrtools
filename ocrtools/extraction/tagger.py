@@ -1,7 +1,7 @@
 import dataclasses
 import datetime
 import dateparser
-from typing import Callable, List, Union
+from typing import List, Union
 import spacy
 import spacy.tokens
 import transformers
@@ -9,9 +9,8 @@ import os
 
 import ocrtools.utils as outils
 
-_NER_MAPPINGS = outils.invert_mapping(dict(
-    PERSON = ["PER"]
-))
+_NER_MAPPINGS = outils.invert_mapping(dict(PERSON=["PER"]))
+
 
 @dataclasses.dataclass
 class TokenSpan:
@@ -25,14 +24,14 @@ class TokenSpan:
     score: float
 
     @staticmethod
-    def from_spacy (span: "spacy.tokens.Span"):
+    def from_spacy(span: "spacy.tokens.Span"):
         return TokenSpan(
-            # TODO: Where should normalization happen? 
+            # TODO: Where should normalization happen?
             # Use spacy as the ground truth?
             span.label_,
             span.text,
             span.start,
-            span.end
+            span.end,
         )
 
 
@@ -43,7 +42,9 @@ class INERTagger:
 
 # TODO: Figure out how to cache tokenization.
 class SpacyTagger(INERTagger):
-    def __init__(self, model: Union[str, "spacy.language.Language"] = "en_core_web_trf") -> None:
+    def __init__(
+        self, model: Union[str, "spacy.language.Language"] = "en_core_web_trf"
+    ) -> None:
         super().__init__()
 
         self.model = model
@@ -54,11 +55,12 @@ class SpacyTagger(INERTagger):
             else:
                 os.environ.setdefault("TOKENIZERS_PARALLELISM", "true")
             self.model = spacy.load(model)
-    
+
     def __call__(self, input: str) -> List[TokenSpan]:
         doc = self.model(input)
         toks = [TokenSpan.from_spacy(ent) for ent in doc.ents]
         return toks
+
 
 # Seems to perform well for Date tagging, even though it is a french model...
 class CambertTagger(INERTagger):
@@ -66,34 +68,38 @@ class CambertTagger(INERTagger):
         super().__init__()
 
         os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
-        _tokenizer = transformers.AutoTokenizer.from_pretrained("Jean-Baptiste/camembert-ner-with-dates")
-        _model = transformers.AutoModelForTokenClassification.from_pretrained("Jean-Baptiste/camembert-ner-with-dates")
-        self.model = transformers.pipeline("ner", model=_model, tokenizer=_tokenizer, aggregation_strategy="simple")
-    
+        _tokenizer = transformers.AutoTokenizer.from_pretrained(
+            "Jean-Baptiste/camembert-ner-with-dates"
+        )
+        _model = transformers.AutoModelForTokenClassification.from_pretrained(
+            "Jean-Baptiste/camembert-ner-with-dates"
+        )
+        self.model = transformers.pipeline(
+            "ner", model=_model, tokenizer=_tokenizer, aggregation_strategy="simple"
+        )
+
     def __call__(self, input: str) -> List[TokenSpan]:
         res = self.model(input)
         toks = []
         for v in res:
             label = _NER_MAPPINGS.get(v["entity_group"], v["entity_group"])
-            toks.append(TokenSpan(
-                label,
-                v["word"],
-                v["start"],
-                v["end"],
-                v["score"]
-            ))
+            toks.append(TokenSpan(label, v["word"], v["start"], v["end"], v["score"]))
         return toks
 
+
 DateTagger = CambertTagger
+
 
 # Seems to perform better on organization tagging
 class BertTagger(INERTagger):
     def __init__(self) -> None:
         super().__init__()
         tokenizer = transformers.AutoTokenizer.from_pretrained("dslim/bert-base-NER")
-        model = transformers.AutoModelForTokenClassification.from_pretrained("dslim/bert-base-NER")
+        model = transformers.AutoModelForTokenClassification.from_pretrained(
+            "dslim/bert-base-NER"
+        )
         self.model = transformers.pipeline("ner", model=model, tokenizer=tokenizer)
-    
+
     def __call__(self, input: str) -> List[TokenSpan]:
         res = self.model(input)
         toks = []
@@ -105,7 +111,13 @@ class BertTagger(INERTagger):
                 label = _NER_MAPPINGS.get(label, label)
                 if curr_tok.label:
                     toks.append(curr_tok)
-                curr_tok = TokenSpan(label, ent["word"].strip("##"), ent["start"], ent["end"], ent["score"])
+                curr_tok = TokenSpan(
+                    label,
+                    ent["word"].strip("##"),
+                    ent["start"],
+                    ent["end"],
+                    ent["score"],
+                )
             else:
                 if curr_tok.end != ent["start"]:
                     curr_tok.text += " "
@@ -115,7 +127,9 @@ class BertTagger(INERTagger):
             toks.append(curr_tok)
         return toks
 
+
 NamedEntityTagger = BertTagger
+
 
 def _filter_non_ascii(string):
     filtered_string = ""
@@ -124,7 +138,10 @@ def _filter_non_ascii(string):
             filtered_string += char
     return filtered_string
 
-def run_tagger (tagger: INERTagger, txts: List[str], labels: List[str], confidence: float = -1):
+
+def run_tagger(
+    tagger: INERTagger, txts: List[str], labels: List[str], confidence: float = -1
+):
     if not isinstance(txts, list):
         txts = [txts]
 
@@ -139,18 +156,24 @@ def run_tagger (tagger: INERTagger, txts: List[str], labels: List[str], confiden
     return results
 
 
-def extract_date_strings (tagger: INERTagger, txts: Union[str,List[str]], confidence: float = 0.7) -> List[datetime.datetime]:
-    date_txts = run_tagger(tagger, txts, labels=["DATE", "CARDINAL"], confidence=confidence)
+def extract_date_strings(
+    tagger: INERTagger, txts: Union[str, List[str]], confidence: float = 0.7
+) -> List[datetime.datetime]:
+    date_txts = run_tagger(
+        tagger, txts, labels=["DATE", "CARDINAL"], confidence=confidence
+    )
     dates = []
     for dt in date_txts:
         try:
-            # TODO: if given just a year, it will assume the rest of the components are today's date for 
+            # TODO: if given just a year, it will assume the rest of the components are today's date for
             # some reason. eg 2019 gets read as Feb 8th, 2019. A more reasonable default would be Jan 1st.
             dates.append(dateparser.parse(dt))
-        except:
+        except Exception:
             pass
     return dates
 
-def extract_named_entities (tagger: INERTagger, txts: Union[str, List[str]], confidence: float = 0.7) -> List[str]:
-    return run_tagger(tagger, txts, labels=["ORG", "PERSON"], confidence=confidence)
 
+def extract_named_entities(
+    tagger: INERTagger, txts: Union[str, List[str]], confidence: float = 0.7
+) -> List[str]:
+    return run_tagger(tagger, txts, labels=["ORG", "PERSON"], confidence=confidence)
